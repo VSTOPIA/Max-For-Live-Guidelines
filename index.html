@@ -88,6 +88,7 @@
       background-color: #333;
       overflow: auto;
       border-radius: 5px;
+      min-height: 600px; /* Ensure minimum height */
     }
     
     #pdfViewer {
@@ -96,6 +97,7 @@
       transition: transform 0.3s ease;
       min-height: 600px;
       align-items: center;
+      padding: 20px 0; /* Add padding to prevent cut-off */
     }
     
     .page {
@@ -103,15 +105,16 @@
       background-color: white;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
       height: auto; /* Allow height to adjust to content */
-      max-height: 75vh; /* Prevent oversized pages */
+      max-height: none; /* Remove height limitation */
       display: flex;
       justify-content: center;
       align-items: center;
+      position: relative; /* For positioning */
     }
     
     .page canvas {
       max-width: 100%;
-      max-height: 100%;
+      height: auto !important; /* Force auto height */
       object-fit: contain;
     }
     
@@ -308,20 +311,101 @@
     async function createTableOfContents(pdf) {
       tocContainer.innerHTML = '';
       
-      // Get the outline (bookmarks)
-      const outline = await pdf.getOutline();
+      // Add manual TOC items for Max For Live Guidelines (since PDF might not have embedded outline)
+      const manualTOC = [
+        { title: "Introduction", page: 1 },
+        { title: "User Interface", page: 2 },
+        { title: "Parameters & Presets", page: 3 },
+        { title: "Help Files & Documentation", page: 4 },
+        { title: "Performance Considerations", page: 5 },
+        { title: "Packaging & Distribution", page: 6 },
+        { title: "Testing", page: 7 }
+      ];
       
-      if (outline && outline.length > 0) {
-        logDebug(`PDF has ${outline.length} outline items`);
+      try {
+        // Get the outline (bookmarks)
+        const outline = await pdf.getOutline();
         
-        for (const item of outline) {
-          const dest = await pdf.getDestination(item.dest);
-          const pageRef = await pdf.getPageIndex(dest[0]);
+        if (outline && outline.length > 0) {
+          logDebug(`PDF has ${outline.length} outline items`);
           
+          for (const item of outline) {
+            try {
+              const dest = await pdf.getDestination(item.dest);
+              const pageRef = await pdf.getPageIndex(dest[0]);
+              
+              const tocItem = document.createElement('div');
+              tocItem.className = 'toc-item';
+              tocItem.textContent = item.title;
+              tocItem.dataset.page = pageRef + 1; // 0-based to 1-based
+              
+              tocItem.addEventListener('click', () => {
+                const pageNumber = parseInt(tocItem.dataset.page);
+                pageNum = pageNumber;
+                showPage(pageNumber);
+              });
+              
+              tocContainer.appendChild(tocItem);
+            } catch (error) {
+              logDebug(`Error processing TOC item: ${error.message}`);
+            }
+          }
+        } else {
+          // Use manual TOC if no outline found
+          logDebug('No outline found, using manual TOC');
+          
+          for (const item of manualTOC) {
+            const tocItem = document.createElement('div');
+            tocItem.className = 'toc-item';
+            tocItem.textContent = item.title;
+            tocItem.dataset.page = item.page;
+            
+            tocItem.addEventListener('click', () => {
+              const pageNumber = parseInt(tocItem.dataset.page);
+              pageNum = pageNumber;
+              showPage(pageNumber);
+            });
+            
+            tocContainer.appendChild(tocItem);
+          }
+          
+          // Also add page numbers
+          const pageDivider = document.createElement('div');
+          pageDivider.style.borderTop = '1px solid #ddd';
+          pageDivider.style.margin = '10px 0';
+          tocContainer.appendChild(pageDivider);
+          
+          const pagesTitle = document.createElement('div');
+          pagesTitle.textContent = 'Pages';
+          pagesTitle.style.fontWeight = 'bold';
+          pagesTitle.style.marginBottom = '5px';
+          tocContainer.appendChild(pagesTitle);
+          
+          // Create a TOC item for each page
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const tocItem = document.createElement('div');
+            tocItem.className = 'toc-item';
+            tocItem.textContent = `Page ${i}`;
+            tocItem.dataset.page = i;
+            
+            tocItem.addEventListener('click', () => {
+              const pageNumber = parseInt(tocItem.dataset.page);
+              pageNum = pageNumber;
+              showPage(pageNumber);
+            });
+            
+            tocContainer.appendChild(tocItem);
+          }
+        }
+      } catch (error) {
+        logDebug(`Error creating TOC: ${error.message}. Using manual TOC.`);
+        
+        // Use manual TOC in case of any error
+        for (const item of manualTOC) {
           const tocItem = document.createElement('div');
           tocItem.className = 'toc-item';
           tocItem.textContent = item.title;
-          tocItem.dataset.page = pageRef + 1; // 0-based to 1-based
+          tocItem.dataset.page = item.page;
           
           tocItem.addEventListener('click', () => {
             const pageNumber = parseInt(tocItem.dataset.page);
@@ -331,11 +415,19 @@
           
           tocContainer.appendChild(tocItem);
         }
-      } else {
-        // If no outline in PDF, create page-based TOC
-        logDebug('No outline found, creating page-based TOC');
         
-        // Create a TOC item for each page
+        // Also add page numbers as a fallback
+        const pageDivider = document.createElement('div');
+        pageDivider.style.borderTop = '1px solid #ddd';
+        pageDivider.style.margin = '10px 0';
+        tocContainer.appendChild(pageDivider);
+        
+        const pagesTitle = document.createElement('div');
+        pagesTitle.textContent = 'Pages';
+        pagesTitle.style.fontWeight = 'bold';
+        pagesTitle.style.marginBottom = '5px';
+        tocContainer.appendChild(pagesTitle);
+        
         for (let i = 1; i <= pdf.numPages; i++) {
           const tocItem = document.createElement('div');
           tocItem.className = 'toc-item';
@@ -385,12 +477,13 @@
         const containerWidth = container.clientWidth;
         
         // Calculate scale to fit height with some margin
-        const heightScale = (containerHeight * 0.85) / viewport.height;
+        const heightScale = (containerHeight * 0.9) / viewport.height;
         // Calculate scale to fit width with some margin
-        const widthScale = (containerWidth * 0.7) / viewport.width;
+        const widthScale = (containerWidth * 0.8) / viewport.width;
         
         // Use the smaller scale to ensure both dimensions fit
-        const bestScale = Math.min(heightScale, widthScale);
+        // But ensure minimum size for readability
+        const bestScale = Math.max(0.7, Math.min(heightScale, widthScale));
         
         logDebug(`Original dimensions: ${viewport.width}x${viewport.height}`);
         logDebug(`Container dimensions: ${containerWidth}x${containerHeight}`);
@@ -403,6 +496,19 @@
           pageDiv.className = 'page';
           pageDiv.dataset.pageNumber = index + 1;
           pageDiv.style.width = `${viewport.width}px`;
+          
+          // Add page number label for easy reference
+          const pageLabel = document.createElement('div');
+          pageLabel.textContent = `Page ${index + 1}`;
+          pageLabel.style.position = 'absolute';
+          pageLabel.style.bottom = '5px';
+          pageLabel.style.right = '10px';
+          pageLabel.style.background = 'rgba(0,0,0,0.5)';
+          pageLabel.style.color = 'white';
+          pageLabel.style.padding = '2px 6px';
+          pageLabel.style.borderRadius = '4px';
+          pageLabel.style.fontSize = '12px';
+          pageDiv.appendChild(pageLabel);
           
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
