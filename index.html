@@ -94,6 +94,22 @@
       color: white;
       font-size: 1.5rem;
     }
+
+    .error {
+      color: #ff6b6b;
+      font-weight: bold;
+    }
+
+    .debug-info {
+      margin-top: 20px;
+      background: #eee;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -112,6 +128,8 @@
       <div id="pageNumber">Page <span id="current">1</span> of <span id="total">0</span></div>
       <button id="nextBtn" disabled>Next Page</button>
     </div>
+
+    <div id="debugInfo" class="debug-info"></div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -131,50 +149,106 @@
     const nextBtn = document.getElementById('nextBtn');
     const currentPage = document.getElementById('current');
     const totalPages = document.getElementById('total');
+    const debugInfo = document.getElementById('debugInfo');
+    const loadingElement = document.querySelector('.loading');
     
-    // Load the PDF
-    pdfjsLib.getDocument('M4L-Production-Guidelines.pdf').promise.then(function(pdf) {
-      pdfDoc = pdf;
-      totalPages.textContent = pdf.numPages;
+    // Helper function to log info
+    function logDebug(message) {
+      console.log(message);
+      debugInfo.style.display = 'block';
+      debugInfo.textContent += message + '\n';
+    }
+
+    // Load the PDF - first try the default path
+    loadingElement.textContent = 'Loading PDF...';
+    
+    // Try both potential PDF paths
+    function tryLoadPDF() {
+      const paths = [
+        './M4L-Production-Guidelines.pdf',
+        '/Max-For-Live-Guidelines/M4L-Production-Guidelines.pdf',
+        'https://raw.githubusercontent.com/VSTOPIA/Max-For-Live-Guidelines/main/M4L-Production-Guidelines.pdf'
+      ];
       
-      // Initial render of all pages
-      renderAllPages().then(() => {
-        document.querySelector('.loading').style.display = 'none';
-        prevBtn.disabled = true;
-        nextBtn.disabled = pdf.numPages <= 1;
-      });
-    }).catch(function(error) {
-      console.error('Error loading PDF:', error);
-      document.querySelector('.loading').textContent = 'Error loading PDF. Please try again later.';
-    });
+      logDebug('Trying to load PDF from multiple possible paths...');
+      
+      // Try each path in sequence
+      function tryNextPath(index) {
+        if (index >= paths.length) {
+          // If we've tried all paths, show error
+          loadingElement.innerHTML = '<span class="error">Error loading PDF. Please check the console for details or <a href="https://github.com/VSTOPIA/Max-For-Live-Guidelines/blob/main/M4L-Production-Guidelines.pdf" target="_blank">view the PDF directly on GitHub</a>.</span>';
+          logDebug('All paths failed. Unable to load PDF.');
+          return;
+        }
+        
+        const path = paths[index];
+        logDebug(`Trying path: ${path}`);
+        
+        pdfjsLib.getDocument(path).promise
+          .then(function(pdf) {
+            logDebug(`Successfully loaded PDF from: ${path}`);
+            pdfDoc = pdf;
+            totalPages.textContent = pdf.numPages;
+            
+            // Initial render of all pages
+            renderAllPages().then(() => {
+              loadingElement.style.display = 'none';
+              prevBtn.disabled = true;
+              nextBtn.disabled = pdf.numPages <= 1;
+            });
+          })
+          .catch(function(error) {
+            logDebug(`Failed to load from ${path}: ${error.message}`);
+            // Try next path
+            tryNextPath(index + 1);
+          });
+      }
+      
+      // Start trying paths
+      tryNextPath(0);
+    }
+    
+    // Start loading
+    tryLoadPDF();
     
     // Render all pages of the PDF
     async function renderAllPages() {
-      const pages = [];
-      for (let i = 1; i <= pdfDoc.numPages; i++) {
-        const page = await pdfDoc.getPage(i);
-        pages.push(page);
-      }
-      
-      for (const page of pages) {
-        const viewport = page.getViewport({ scale });
-        const pageDiv = document.createElement('div');
-        pageDiv.className = 'page';
-        pageDiv.style.width = `${viewport.width}px`;
-        pageDiv.style.height = `${viewport.height}px`;
+      try {
+        const pages = [];
+        logDebug(`Rendering ${pdfDoc.numPages} pages...`);
         
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+          logDebug(`Getting page ${i}...`);
+          const page = await pdfDoc.getPage(i);
+          pages.push(page);
+        }
         
-        pageDiv.appendChild(canvas);
-        pdfViewer.appendChild(pageDiv);
+        for (const [index, page] of pages.entries()) {
+          logDebug(`Rendering page ${index + 1}...`);
+          const viewport = page.getViewport({ scale });
+          const pageDiv = document.createElement('div');
+          pageDiv.className = 'page';
+          pageDiv.style.width = `${viewport.width}px`;
+          pageDiv.style.height = `${viewport.height}px`;
+          
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          
+          pageDiv.appendChild(canvas);
+          pdfViewer.appendChild(pageDiv);
+          
+          await page.render({
+            canvasContext: context,
+            viewport: viewport
+          }).promise;
+        }
         
-        await page.render({
-          canvasContext: context,
-          viewport: viewport
-        }).promise;
+        logDebug('All pages rendered successfully.');
+      } catch (error) {
+        logDebug(`Error rendering pages: ${error.message}`);
+        loadingElement.innerHTML = '<span class="error">Error rendering PDF pages. Please refresh the page or view the PDF directly on GitHub.</span>';
       }
     }
     
@@ -215,6 +289,13 @@
         prevBtn.click();
       } else if (e.key === 'ArrowRight' && !nextBtn.disabled) {
         nextBtn.click();
+      }
+    });
+
+    // Show debug info on triple click of header
+    document.querySelector('header').addEventListener('click', function(e) {
+      if (e.detail === 3) {
+        debugInfo.style.display = debugInfo.style.display === 'block' ? 'none' : 'block';
       }
     });
   </script>
