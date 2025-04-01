@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Max For Live Production Guidelines</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/web/pdf_viewer.min.css">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -15,6 +14,7 @@
       height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
     
     header {
@@ -22,172 +22,90 @@
       color: white;
       padding: 1rem;
       text-align: center;
+      z-index: 100;
     }
     
     h1 {
       margin: 0;
     }
     
-    .main-container {
-      display: flex;
-      flex: 1;
-      height: calc(100vh - 60px);
-    }
-    
-    .sidebar {
-      width: 250px;
-      background-color: #f0f0f0;
-      border-right: 1px solid #ddd;
-      overflow-y: auto;
-      padding: 1rem;
-      height: 100%;
-    }
-    
-    .sidebar h2 {
-      font-size: 1.2rem;
-      margin-top: 0;
-      padding-bottom: 0.5rem;
-      border-bottom: 1px solid #ddd;
-    }
-    
-    .toc-item {
-      padding: 8px 5px;
-      cursor: pointer;
-      border-radius: 4px;
-      margin-bottom: 4px;
-      font-size: 0.9rem;
-    }
-    
-    .toc-item:hover {
-      background-color: #e0e0e0;
-    }
-    
-    .toc-item.active {
-      background-color: #007bff;
-      color: white;
-    }
-    
-    .content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-    }
-    
     .container {
       flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding: 1rem;
-      max-width: 100%;
-    }
-    
-    #pdfContainer {
       position: relative;
-      flex: 1;
-      background-color: #333;
-      overflow: auto;
-      border-radius: 5px;
-      min-height: 600px; /* Ensure minimum height */
+      height: calc(100vh - 60px);
+      overflow: hidden;
     }
     
-    #pdfViewer {
-      display: flex;
+    .pdf-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
       height: 100%;
-      transition: transform 0.3s ease;
-      min-height: 600px;
-      align-items: center;
-      padding: 20px 0; /* Add padding to prevent cut-off */
+      border: none;
     }
     
-    .page {
-      margin: 10px;
-      background-color: white;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-      height: auto; /* Allow height to adjust to content */
-      max-height: none; /* Remove height limitation */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
       display: flex;
       justify-content: center;
       align-items: center;
-      position: relative; /* For positioning */
+      z-index: 50;
+      transition: opacity 0.5s ease;
     }
     
-    .page canvas {
-      max-width: 100%;
-      height: auto !important; /* Force auto height */
-      object-fit: contain;
+    .loading-text {
+      color: white;
+      font-size: 1.5rem;
+      text-align: center;
+      max-width: 80%;
     }
     
     .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
-      justify-content: center;
-      padding: 1rem;
       gap: 1rem;
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 0.5rem 1rem;
+      border-radius: 50px;
+      z-index: 100;
     }
     
-    button {
-      background-color: #007bff;
+    .control-button {
+      background-color: transparent;
       color: white;
       border: none;
-      padding: 0.5rem 1rem;
-      border-radius: 4px;
       cursor: pointer;
       font-size: 1rem;
-    }
-    
-    button:hover {
-      background-color: #0056b3;
-    }
-    
-    button:disabled {
-      background-color: #cccccc;
-      cursor: not-allowed;
-    }
-    
-    #pageNumber {
-      display: inline-block;
+      display: flex;
+      align-items: center;
       padding: 0.5rem;
-      background-color: white;
+    }
+    
+    .control-button:hover {
+      background-color: rgba(255, 255, 255, 0.1);
       border-radius: 4px;
-      margin: 0 1rem;
     }
     
-    .loading {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: white;
-      font-size: 1.5rem;
-    }
-
-    .error {
-      color: #ff6b6b;
-      font-weight: bold;
-    }
-
-    .debug-info {
-      margin-top: 20px;
-      background: #eee;
-      padding: 10px;
-      border-radius: 5px;
-      font-family: monospace;
-      font-size: 12px;
-      white-space: pre-wrap;
-      display: none;
+    .alternative-links {
+      margin-top: 1rem;
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
     }
     
-    @media (max-width: 768px) {
-      .main-container {
-        flex-direction: column;
-      }
-      
-      .sidebar {
-        width: 100%;
-        max-height: 200px;
-        border-right: none;
-        border-bottom: 1px solid #ddd;
-      }
+    .alternative-link {
+      color: #007bff;
+      text-decoration: underline;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -196,390 +114,58 @@
     <h1>Max For Live Production Guidelines</h1>
   </header>
   
-  <div class="main-container">
-    <div class="sidebar">
-      <h2>Table of Contents</h2>
-      <div id="tocContainer">
-        <div class="loading">Loading TOC...</div>
-      </div>
-    </div>
+  <div class="container">
+    <!-- Direct embed of the PDF from the original source -->
+    <iframe id="pdfViewer" class="pdf-container" src="https://maxforlive.com/resources/M4L-Production-Guidelines.pdf" allowfullscreen></iframe>
     
-    <div class="content">
-      <div class="container">
-        <div id="pdfContainer">
-          <div id="pdfViewer"></div>
-          <div class="loading">Loading PDF...</div>
-        </div>
-        
-        <div class="controls">
-          <button id="prevBtn" disabled>Previous Page</button>
-          <div id="pageNumber">Page <span id="current">1</span> of <span id="total">0</span></div>
-          <button id="nextBtn" disabled>Next Page</button>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="loading-text">
+        <p>Loading the Max For Live Production Guidelines...</p>
+        <p>If the document doesn't load, try one of these options:</p>
+        <div class="alternative-links">
+          <a href="https://maxforlive.com/resources/M4L-Production-Guidelines.pdf" target="_blank" class="alternative-link">Open PDF directly</a>
+          <a href="https://github.com/VSTOPIA/Max-For-Live-Guidelines/blob/main/M4L-Production-Guidelines.pdf" target="_blank" class="alternative-link">View on GitHub</a>
         </div>
       </div>
-  
-      <div id="debugInfo" class="debug-info"></div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script>
-    // Set worker path for PDF.js
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-    
-    // Variables
-    let pdfDoc = null;
-    let pageNum = 1;
-    let pageRendering = false;
-    let pageNumPending = null;
     const pdfViewer = document.getElementById('pdfViewer');
-    const container = document.getElementById('pdfContainer');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
-    const currentPage = document.getElementById('current');
-    const totalPages = document.getElementById('total');
-    const debugInfo = document.getElementById('debugInfo');
-    const loadingElement = document.querySelector('#pdfContainer .loading');
-    const tocContainer = document.getElementById('tocContainer');
+    const loadingOverlay = document.getElementById('loadingOverlay');
     
-    // Helper function to log info
-    function logDebug(message) {
-      console.log(message);
-      debugInfo.style.display = 'block';
-      debugInfo.textContent += message + '\n';
-    }
-
-    // Load the PDF - first try the default path
-    loadingElement.textContent = 'Loading PDF...';
-    
-    // Try potential PDF paths
-    function tryLoadPDF() {
-      const paths = [
-        './M4L-Production-Guidelines.pdf',
-        '/Max-For-Live-Guidelines/M4L-Production-Guidelines.pdf',
-        'https://raw.githubusercontent.com/VSTOPIA/Max-For-Live-Guidelines/main/M4L-Production-Guidelines.pdf'
-      ];
-      
-      logDebug('Trying to load PDF from multiple possible paths...');
-      
-      // Try each path in sequence
-      function tryNextPath(index) {
-        if (index >= paths.length) {
-          // If we've tried all paths, show error
-          loadingElement.innerHTML = '<span class="error">Error loading PDF. Please check the console for details or <a href="https://github.com/VSTOPIA/Max-For-Live-Guidelines/blob/main/M4L-Production-Guidelines.pdf" target="_blank">view the PDF directly on GitHub</a>.</span>';
-          logDebug('All paths failed. Unable to load PDF.');
-          return;
-        }
-        
-        const path = paths[index];
-        logDebug(`Trying path: ${path}`);
-        
-        pdfjsLib.getDocument(path).promise
-          .then(function(pdf) {
-            logDebug(`Successfully loaded PDF from: ${path}`);
-            pdfDoc = pdf;
-            totalPages.textContent = pdf.numPages;
-            
-            // Create table of contents
-            createTableOfContents(pdf);
-
-            // Initial render of all pages
-            renderAllPages().then(() => {
-              loadingElement.style.display = 'none';
-              prevBtn.disabled = true;
-              nextBtn.disabled = pdf.numPages <= 1;
-              
-              // Highlight first TOC item as active
-              setActiveTocItem(1);
-            });
-          })
-          .catch(function(error) {
-            logDebug(`Failed to load from ${path}: ${error.message}`);
-            // Try next path
-            tryNextPath(index + 1);
-          });
-      }
-      
-      // Start trying paths
-      tryNextPath(0);
-    }
-    
-    // Start loading
-    tryLoadPDF();
-    
-    // Create TOC items
-    async function createTableOfContents(pdf) {
-      tocContainer.innerHTML = '';
-      
-      // Add manual TOC items for Max For Live Guidelines (since PDF might not have embedded outline)
-      const manualTOC = [
-        { title: "Introduction", page: 1 },
-        { title: "User Interface", page: 2 },
-        { title: "Parameters & Presets", page: 3 },
-        { title: "Help Files & Documentation", page: 4 },
-        { title: "Performance Considerations", page: 5 },
-        { title: "Packaging & Distribution", page: 6 },
-        { title: "Testing", page: 7 }
-      ];
-      
-      try {
-        // Get the outline (bookmarks)
-        const outline = await pdf.getOutline();
-        
-        if (outline && outline.length > 0) {
-          logDebug(`PDF has ${outline.length} outline items`);
-          
-          for (const item of outline) {
-            try {
-              const dest = await pdf.getDestination(item.dest);
-              const pageRef = await pdf.getPageIndex(dest[0]);
-              
-              const tocItem = document.createElement('div');
-              tocItem.className = 'toc-item';
-              tocItem.textContent = item.title;
-              tocItem.dataset.page = pageRef + 1; // 0-based to 1-based
-              
-              tocItem.addEventListener('click', () => {
-                const pageNumber = parseInt(tocItem.dataset.page);
-                pageNum = pageNumber;
-                showPage(pageNumber);
-              });
-              
-              tocContainer.appendChild(tocItem);
-            } catch (error) {
-              logDebug(`Error processing TOC item: ${error.message}`);
-            }
-          }
-        } else {
-          // Use manual TOC if no outline found
-          logDebug('No outline found, using manual TOC');
-          
-          for (const item of manualTOC) {
-            const tocItem = document.createElement('div');
-            tocItem.className = 'toc-item';
-            tocItem.textContent = item.title;
-            tocItem.dataset.page = item.page;
-            
-            tocItem.addEventListener('click', () => {
-              const pageNumber = parseInt(tocItem.dataset.page);
-              pageNum = pageNumber;
-              showPage(pageNumber);
-            });
-            
-            tocContainer.appendChild(tocItem);
-          }
-          
-          // Also add page numbers
-          const pageDivider = document.createElement('div');
-          pageDivider.style.borderTop = '1px solid #ddd';
-          pageDivider.style.margin = '10px 0';
-          tocContainer.appendChild(pageDivider);
-          
-          const pagesTitle = document.createElement('div');
-          pagesTitle.textContent = 'Pages';
-          pagesTitle.style.fontWeight = 'bold';
-          pagesTitle.style.marginBottom = '5px';
-          tocContainer.appendChild(pagesTitle);
-          
-          // Create a TOC item for each page
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const tocItem = document.createElement('div');
-            tocItem.className = 'toc-item';
-            tocItem.textContent = `Page ${i}`;
-            tocItem.dataset.page = i;
-            
-            tocItem.addEventListener('click', () => {
-              const pageNumber = parseInt(tocItem.dataset.page);
-              pageNum = pageNumber;
-              showPage(pageNumber);
-            });
-            
-            tocContainer.appendChild(tocItem);
-          }
-        }
-      } catch (error) {
-        logDebug(`Error creating TOC: ${error.message}. Using manual TOC.`);
-        
-        // Use manual TOC in case of any error
-        for (const item of manualTOC) {
-          const tocItem = document.createElement('div');
-          tocItem.className = 'toc-item';
-          tocItem.textContent = item.title;
-          tocItem.dataset.page = item.page;
-          
-          tocItem.addEventListener('click', () => {
-            const pageNumber = parseInt(tocItem.dataset.page);
-            pageNum = pageNumber;
-            showPage(pageNumber);
-          });
-          
-          tocContainer.appendChild(tocItem);
-        }
-        
-        // Also add page numbers as a fallback
-        const pageDivider = document.createElement('div');
-        pageDivider.style.borderTop = '1px solid #ddd';
-        pageDivider.style.margin = '10px 0';
-        tocContainer.appendChild(pageDivider);
-        
-        const pagesTitle = document.createElement('div');
-        pagesTitle.textContent = 'Pages';
-        pagesTitle.style.fontWeight = 'bold';
-        pagesTitle.style.marginBottom = '5px';
-        tocContainer.appendChild(pagesTitle);
-        
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const tocItem = document.createElement('div');
-          tocItem.className = 'toc-item';
-          tocItem.textContent = `Page ${i}`;
-          tocItem.dataset.page = i;
-          
-          tocItem.addEventListener('click', () => {
-            const pageNumber = parseInt(tocItem.dataset.page);
-            pageNum = pageNumber;
-            showPage(pageNumber);
-          });
-          
-          tocContainer.appendChild(tocItem);
-        }
-      }
-    }
-    
-    // Set active TOC item
-    function setActiveTocItem(pageNumber) {
-      const tocItems = document.querySelectorAll('.toc-item');
-      tocItems.forEach(item => {
-        item.classList.remove('active');
-        if (parseInt(item.dataset.page) === pageNumber) {
-          item.classList.add('active');
-          // Scroll to this item in the sidebar
-          item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      });
-    }
-    
-    // Render all pages of the PDF
-    async function renderAllPages() {
-      try {
-        const pages = [];
-        logDebug(`Rendering ${pdfDoc.numPages} pages...`);
-        
-        for (let i = 1; i <= pdfDoc.numPages; i++) {
-          logDebug(`Getting page ${i}...`);
-          const page = await pdfDoc.getPage(i);
-          pages.push(page);
-        }
-        
-        // Calculate the best scale based on container height
-        const firstPage = pages[0];
-        const viewport = firstPage.getViewport({ scale: 1.0 });
-        const containerHeight = container.clientHeight;
-        const containerWidth = container.clientWidth;
-        
-        // Calculate scale to fit height with some margin
-        const heightScale = (containerHeight * 0.9) / viewport.height;
-        // Calculate scale to fit width with some margin
-        const widthScale = (containerWidth * 0.8) / viewport.width;
-        
-        // Use the smaller scale to ensure both dimensions fit
-        // But ensure minimum size for readability
-        const bestScale = Math.max(0.7, Math.min(heightScale, widthScale));
-        
-        logDebug(`Original dimensions: ${viewport.width}x${viewport.height}`);
-        logDebug(`Container dimensions: ${containerWidth}x${containerHeight}`);
-        logDebug(`Using adaptive scale: ${bestScale.toFixed(2)}`);
-        
-        for (const [index, page] of pages.entries()) {
-          logDebug(`Rendering page ${index + 1}...`);
-          const viewport = page.getViewport({ scale: bestScale });
-          const pageDiv = document.createElement('div');
-          pageDiv.className = 'page';
-          pageDiv.dataset.pageNumber = index + 1;
-          pageDiv.style.width = `${viewport.width}px`;
-          
-          // Add page number label for easy reference
-          const pageLabel = document.createElement('div');
-          pageLabel.textContent = `Page ${index + 1}`;
-          pageLabel.style.position = 'absolute';
-          pageLabel.style.bottom = '5px';
-          pageLabel.style.right = '10px';
-          pageLabel.style.background = 'rgba(0,0,0,0.5)';
-          pageLabel.style.color = 'white';
-          pageLabel.style.padding = '2px 6px';
-          pageLabel.style.borderRadius = '4px';
-          pageLabel.style.fontSize = '12px';
-          pageDiv.appendChild(pageLabel);
-          
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d');
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          
-          pageDiv.appendChild(canvas);
-          pdfViewer.appendChild(pageDiv);
-          
-          await page.render({
-            canvasContext: context,
-            viewport: viewport
-          }).promise;
-        }
-        
-        logDebug('All pages rendered successfully.');
-      } catch (error) {
-        logDebug(`Error rendering pages: ${error.message}`);
-        loadingElement.innerHTML = '<span class="error">Error rendering PDF pages. Please refresh the page or view the PDF directly on GitHub.</span>';
-      }
-    }
-    
-    // Navigate to previous page
-    prevBtn.addEventListener('click', function() {
-      if (pageNum <= 1) return;
-      pageNum--;
-      showPage(pageNum);
+    // Hide loading overlay when PDF is loaded
+    pdfViewer.addEventListener('load', function() {
+      setTimeout(() => {
+        loadingOverlay.style.opacity = 0;
+        setTimeout(() => {
+          loadingOverlay.style.display = 'none';
+        }, 500);
+      }, 1000); // Give a little extra time for the PDF to render properly
     });
     
-    // Navigate to next page
-    nextBtn.addEventListener('click', function() {
-      if (pageNum >= pdfDoc.numPages) return;
-      pageNum++;
-      showPage(pageNum);
+    // Handle error if PDF fails to load
+    pdfViewer.addEventListener('error', function() {
+      document.querySelector('.loading-text').innerHTML = `
+        <p>Failed to load the PDF directly.</p>
+        <p>Please try one of these alternatives:</p>
+        <div class="alternative-links">
+          <a href="https://maxforlive.com/resources/M4L-Production-Guidelines.pdf" target="_blank" class="alternative-link">Open PDF directly</a>
+          <a href="https://github.com/VSTOPIA/Max-For-Live-Guidelines/blob/main/M4L-Production-Guidelines.pdf" target="_blank" class="alternative-link">View on GitHub</a>
+          <a href="M4L-Production-Guidelines.pdf" class="alternative-link">View local copy</a>
+        </div>
+      `;
     });
     
-    // Show the specified page
-    function showPage(num) {
-      pageNum = num;
-      currentPage.textContent = num;
-      
-      // Update button states
-      prevBtn.disabled = pageNum <= 1;
-      nextBtn.disabled = pageNum >= pdfDoc.numPages;
-      
-      // Calculate position and scroll
-      const pages = document.querySelectorAll('.page');
-      if (pages.length >= num) {
-        const pageWidth = pages[0].offsetWidth + 20; // Width + margin
-        pdfViewer.style.transform = `translateX(-${(num - 1) * pageWidth}px)`;
+    // Fallback if iframe doesn't fire load event
+    setTimeout(() => {
+      if (loadingOverlay.style.display !== 'none') {
+        loadingOverlay.style.opacity = 0;
+        setTimeout(() => {
+          loadingOverlay.style.display = 'none';
+        }, 500);
       }
-      
-      // Update active TOC item
-      setActiveTocItem(num);
-    }
-    
-    // Add keyboard navigation
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'ArrowLeft' && !prevBtn.disabled) {
-        prevBtn.click();
-      } else if (e.key === 'ArrowRight' && !nextBtn.disabled) {
-        nextBtn.click();
-      }
-    });
-
-    // Show debug info on triple click of header
-    document.querySelector('header').addEventListener('click', function(e) {
-      if (e.detail === 3) {
-        debugInfo.style.display = debugInfo.style.display === 'block' ? 'none' : 'block';
-      }
-    });
+    }, 8000);
   </script>
 </body>
 </html> 
