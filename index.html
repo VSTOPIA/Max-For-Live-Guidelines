@@ -12,6 +12,9 @@
       padding: 0;
       background-color: #f5f5f5;
       color: #333;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
     
     header {
@@ -25,18 +28,65 @@
       margin: 0;
     }
     
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
+    .main-container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 60px);
+    }
+    
+    .sidebar {
+      width: 250px;
+      background-color: #f0f0f0;
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
       padding: 1rem;
+      height: 100%;
+    }
+    
+    .sidebar h2 {
+      font-size: 1.2rem;
+      margin-top: 0;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .toc-item {
+      padding: 8px 5px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      font-size: 0.9rem;
+    }
+    
+    .toc-item:hover {
+      background-color: #e0e0e0;
+    }
+    
+    .toc-item.active {
+      background-color: #007bff;
+      color: white;
+    }
+    
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 1rem;
+      max-width: 100%;
     }
     
     #pdfContainer {
       position: relative;
-      width: 100%;
-      height: 80vh;
+      flex: 1;
       background-color: #333;
-      overflow: hidden;
+      overflow: auto;
       border-radius: 5px;
     }
     
@@ -44,12 +94,25 @@
       display: flex;
       height: 100%;
       transition: transform 0.3s ease;
+      min-height: 600px;
+      align-items: center;
     }
     
     .page {
       margin: 10px;
       background-color: white;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      height: auto; /* Allow height to adjust to content */
+      max-height: 75vh; /* Prevent oversized pages */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .page canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
     }
     
     .controls {
@@ -110,6 +173,19 @@
       white-space: pre-wrap;
       display: none;
     }
+    
+    @media (max-width: 768px) {
+      .main-container {
+        flex-direction: column;
+      }
+      
+      .sidebar {
+        width: 100%;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid #ddd;
+      }
+    }
   </style>
 </head>
 <body>
@@ -117,19 +193,30 @@
     <h1>Max For Live Production Guidelines</h1>
   </header>
   
-  <div class="container">
-    <div id="pdfContainer">
-      <div id="pdfViewer"></div>
-      <div class="loading">Loading PDF...</div>
+  <div class="main-container">
+    <div class="sidebar">
+      <h2>Table of Contents</h2>
+      <div id="tocContainer">
+        <div class="loading">Loading TOC...</div>
+      </div>
     </div>
     
-    <div class="controls">
-      <button id="prevBtn" disabled>Previous Page</button>
-      <div id="pageNumber">Page <span id="current">1</span> of <span id="total">0</span></div>
-      <button id="nextBtn" disabled>Next Page</button>
+    <div class="content">
+      <div class="container">
+        <div id="pdfContainer">
+          <div id="pdfViewer"></div>
+          <div class="loading">Loading PDF...</div>
+        </div>
+        
+        <div class="controls">
+          <button id="prevBtn" disabled>Previous Page</button>
+          <div id="pageNumber">Page <span id="current">1</span> of <span id="total">0</span></div>
+          <button id="nextBtn" disabled>Next Page</button>
+        </div>
+      </div>
+  
+      <div id="debugInfo" class="debug-info"></div>
     </div>
-
-    <div id="debugInfo" class="debug-info"></div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -142,7 +229,6 @@
     let pageNum = 1;
     let pageRendering = false;
     let pageNumPending = null;
-    const scale = 1.5;
     const pdfViewer = document.getElementById('pdfViewer');
     const container = document.getElementById('pdfContainer');
     const prevBtn = document.getElementById('prevBtn');
@@ -150,7 +236,8 @@
     const currentPage = document.getElementById('current');
     const totalPages = document.getElementById('total');
     const debugInfo = document.getElementById('debugInfo');
-    const loadingElement = document.querySelector('.loading');
+    const loadingElement = document.querySelector('#pdfContainer .loading');
+    const tocContainer = document.getElementById('tocContainer');
     
     // Helper function to log info
     function logDebug(message) {
@@ -162,7 +249,7 @@
     // Load the PDF - first try the default path
     loadingElement.textContent = 'Loading PDF...';
     
-    // Try both potential PDF paths
+    // Try potential PDF paths
     function tryLoadPDF() {
       const paths = [
         './M4L-Production-Guidelines.pdf',
@@ -190,11 +277,17 @@
             pdfDoc = pdf;
             totalPages.textContent = pdf.numPages;
             
+            // Create table of contents
+            createTableOfContents(pdf);
+
             // Initial render of all pages
             renderAllPages().then(() => {
               loadingElement.style.display = 'none';
               prevBtn.disabled = true;
               nextBtn.disabled = pdf.numPages <= 1;
+              
+              // Highlight first TOC item as active
+              setActiveTocItem(1);
             });
           })
           .catch(function(error) {
@@ -211,6 +304,68 @@
     // Start loading
     tryLoadPDF();
     
+    // Create TOC items
+    async function createTableOfContents(pdf) {
+      tocContainer.innerHTML = '';
+      
+      // Get the outline (bookmarks)
+      const outline = await pdf.getOutline();
+      
+      if (outline && outline.length > 0) {
+        logDebug(`PDF has ${outline.length} outline items`);
+        
+        for (const item of outline) {
+          const dest = await pdf.getDestination(item.dest);
+          const pageRef = await pdf.getPageIndex(dest[0]);
+          
+          const tocItem = document.createElement('div');
+          tocItem.className = 'toc-item';
+          tocItem.textContent = item.title;
+          tocItem.dataset.page = pageRef + 1; // 0-based to 1-based
+          
+          tocItem.addEventListener('click', () => {
+            const pageNumber = parseInt(tocItem.dataset.page);
+            pageNum = pageNumber;
+            showPage(pageNumber);
+          });
+          
+          tocContainer.appendChild(tocItem);
+        }
+      } else {
+        // If no outline in PDF, create page-based TOC
+        logDebug('No outline found, creating page-based TOC');
+        
+        // Create a TOC item for each page
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const tocItem = document.createElement('div');
+          tocItem.className = 'toc-item';
+          tocItem.textContent = `Page ${i}`;
+          tocItem.dataset.page = i;
+          
+          tocItem.addEventListener('click', () => {
+            const pageNumber = parseInt(tocItem.dataset.page);
+            pageNum = pageNumber;
+            showPage(pageNumber);
+          });
+          
+          tocContainer.appendChild(tocItem);
+        }
+      }
+    }
+    
+    // Set active TOC item
+    function setActiveTocItem(pageNumber) {
+      const tocItems = document.querySelectorAll('.toc-item');
+      tocItems.forEach(item => {
+        item.classList.remove('active');
+        if (parseInt(item.dataset.page) === pageNumber) {
+          item.classList.add('active');
+          // Scroll to this item in the sidebar
+          item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
+    }
+    
     // Render all pages of the PDF
     async function renderAllPages() {
       try {
@@ -223,13 +378,31 @@
           pages.push(page);
         }
         
+        // Calculate the best scale based on container height
+        const firstPage = pages[0];
+        const viewport = firstPage.getViewport({ scale: 1.0 });
+        const containerHeight = container.clientHeight;
+        const containerWidth = container.clientWidth;
+        
+        // Calculate scale to fit height with some margin
+        const heightScale = (containerHeight * 0.85) / viewport.height;
+        // Calculate scale to fit width with some margin
+        const widthScale = (containerWidth * 0.7) / viewport.width;
+        
+        // Use the smaller scale to ensure both dimensions fit
+        const bestScale = Math.min(heightScale, widthScale);
+        
+        logDebug(`Original dimensions: ${viewport.width}x${viewport.height}`);
+        logDebug(`Container dimensions: ${containerWidth}x${containerHeight}`);
+        logDebug(`Using adaptive scale: ${bestScale.toFixed(2)}`);
+        
         for (const [index, page] of pages.entries()) {
           logDebug(`Rendering page ${index + 1}...`);
-          const viewport = page.getViewport({ scale });
+          const viewport = page.getViewport({ scale: bestScale });
           const pageDiv = document.createElement('div');
           pageDiv.className = 'page';
+          pageDiv.dataset.pageNumber = index + 1;
           pageDiv.style.width = `${viewport.width}px`;
-          pageDiv.style.height = `${viewport.height}px`;
           
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
@@ -281,6 +454,9 @@
         const pageWidth = pages[0].offsetWidth + 20; // Width + margin
         pdfViewer.style.transform = `translateX(-${(num - 1) * pageWidth}px)`;
       }
+      
+      // Update active TOC item
+      setActiveTocItem(num);
     }
     
     // Add keyboard navigation
