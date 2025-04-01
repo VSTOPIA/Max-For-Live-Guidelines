@@ -6,9 +6,14 @@ This repository hosts the official Max For Live Production Guidelines from Ablet
 
 **[View the PDF directly in GitHub](M4L-Production-Guidelines.pdf)**
 
+**[Interactive Viewer with Horizontal Page Navigation](https://vstopia.github.io/Max-For-Live-Guidelines/)**
+
 <div align="center">
   <a href="M4L-Production-Guidelines.pdf">
     <img src="https://img.shields.io/badge/Download-PDF-red?style=for-the-badge" alt="Download PDF">
+  </a>
+  <a href="https://vstopia.github.io/Max-For-Live-Guidelines/">
+    <img src="https://img.shields.io/badge/Interactive-Viewer-blue?style=for-the-badge" alt="Interactive Viewer">
   </a>
 </div>
 
